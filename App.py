@@ -1,36 +1,56 @@
 import streamlit as st
-import streamlit.components.v1 as components
+import yfinance as yf
+import pandas as pd
+import plotly.graph_objects as go
+from datetime import datetime, timedelta
 
-# SAVE Real-View Application
+# Page config
 st.set_page_config(layout="wide", page_title="SAVE Real-View")
 
 st.title("SAVE Real-View: Live Prediction Panel")
-st.subheader("Project: SAN-AM EXPRESS DELIVERY")
+st.write("Project: SAN-AM EXPRESS DELIVERY")
 
-# TradingView Live Gold Chart
-tradingview_widget = """
-<div class="tradingview-widget-container">
-  <div id="tradingview_54f0a"></div>
-  <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
-  <script type="text/javascript">
-  new TradingView.widget({
-    "width": "100%",
-    "height": "600",
-    "symbol": "OANDA:XAUUSD",
-    "interval": "15",
-    "timezone": "Asia/Dubai",
-    "theme": "dark",
-    "style": "1",
-    "locale": "en",
-    "enable_publishing": false,
-    "allow_symbol_change": true,
-    "container_id": "tradingview_54f0a"
-  });
-  </script>
-</div>
-"""
+# Fetch Gold Data (last 6 months for speed, can be increased)
+@st.cache_data
+def load_data():
+    data = yf.download("XAUUSD=X", period="6mo", interval="1h")
+    return data
 
-components.html(tradingview_widget, height=620)
+data = load_data()
 
-st.write("---")
-st.info("💡 Ghost Mode: Connecting to SAN-AM PORTALS for future predictions...")
+# Basic Plotly Chart
+fig = go.Figure()
+fig.add_trace(go.Candlestick(x=data.index,
+                open=data['Open'],
+                high=data['High'],
+                low=data['Low'],
+                close=data['Close'],
+                name='Market Data'))
+
+# --- GHOST CANDLES LOGIC (Simplified Prediction) ---
+# In real AI, this part reads 5-10 years of data.
+last_date = data.index[-1]
+last_close = data['Close'].iloc[-1]
+prediction_days = 2
+
+# Creating dummy ghost candles for demonstration
+for i in range(1, prediction_days + 1):
+    ghost_date = last_date + timedelta(hours=i)
+    # Simple prediction: moving up
+    ghost_close = last_close + (i * 2) 
+    
+    fig.add_trace(go.Candlestick(x=[ghost_date],
+                    open=[last_close],
+                    high=[ghost_close + 1],
+                    low=[last_close - 1],
+                    close=[ghost_close],
+                    name='Ghost Prediction',
+                    opacity=0.3)) # Transparent
+    last_close = ghost_close
+
+fig.update_layout(title='Gold Price with Ghost Candles',
+                  yaxis_title='Price (USD)',
+                  xaxis_title='Date',
+                  template='plotly_dark')
+
+st.plotly_chart(fig, use_container_width=True)
