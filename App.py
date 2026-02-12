@@ -1,6 +1,6 @@
 import streamlit as st
-import pandas as pd
 import yfinance as yf
+import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 from sklearn.linear_model import LinearRegression
@@ -9,71 +9,66 @@ from datetime import datetime, timedelta
 st.set_page_config(layout="wide", page_title="SAVE Real-View AI")
 st.title("SAVE Real-View: AI Ghost Prediction")
 
-# 1. Fetch Real Data
-@st.cache_data(ttl=60)
+# 1. Fetch REAL-TIME GOLD Data
+@st.cache_data(ttl=30)
 def get_gold_data():
-    # Use GC=F (Futures) for better accuracy
-    df = yf.download("GC=F", period="2d", interval="15m")
+    # XAUUSD=X is most stable for live view
+    df = yf.download("XAUUSD=X", period="1d", interval="15m")
     return df
 
 data = get_gold_data()
 
 if not data.empty:
-    # 2. AI Model for Prediction
-    data_copy = data.copy()
-    data_copy['Time_Idx'] = np.arange(len(data_copy))
-    X = data_copy[['Time_Idx']].values
-    y = data_copy['Close'].values.reshape(-1, 1)
+    # 2. AI GHOST LOGIC (Based on Momentum)
+    # Predicting next 8 candles (2 hours)
+    last_price = float(data['Close'].iloc[-1])
+    last_time = data.index[-1]
     
-    model = LinearRegression()
-    model.fit(X, y)
+    # Simple Momentum AI
+    prices = data['Close'].values[-20:] # Last 20 candles
+    avg_move = np.mean(np.diff(prices))
     
-    # Predict next 10 candles
-    future_indices = np.arange(len(data_copy), len(data_copy) + 10).reshape(-1, 1)
-    future_preds = model.predict(future_indices).flatten()
-    
-    # 3. DRAW CHART (TradingView Look & Feel)
+    # 3. CREATE CHART (TradingView Style)
     fig = go.Figure()
 
-    # Live Market Candles
+    # LIVE DATA
     fig.add_trace(go.Candlestick(
         x=data.index, open=data['Open'], high=data['High'], 
         low=data['Low'], close=data['Close'], name='Live Market'
     ))
 
-    # Ghost Prediction Candles
-    last_time = data.index[-1]
-    last_price = float(data['Close'].iloc[-1])
-
-    for i in range(len(future_preds)):
-        pred_time = last_time + timedelta(minutes=15 * (i+1))
-        pred_close = float(future_preds[i])
+    # GHOST DATA
+    current_ghost_price = last_price
+    for i in range(1, 9):
+        future_time = last_time + timedelta(minutes=15 * i)
+        # Adding a bit of AI random walk based on momentum
+        prediction = current_ghost_price + avg_move + np.random.uniform(-1.5, 1.5)
         
-        # Color based on trend
-        is_up = pred_close >= last_price
-        color = 'rgba(0, 255, 0, 0.3)' if is_up else 'rgba(255, 0, 0, 0.3)'
+        is_up = prediction >= current_ghost_price
+        color = 'rgba(0, 255, 0, 0.4)' if is_up else 'rgba(255, 0, 0, 0.4)'
         
         fig.add_trace(go.Candlestick(
-            x=[pred_time], 
-            open=[last_price], 
-            high=[max(last_price, pred_close) + 0.5],
-            low=[min(last_price, pred_close) - 0.5], 
-            close=[pred_close],
-            increasing_line_color=color, 
-            decreasing_line_color=color,
-            name='Ghost AI'
+            x=[future_time], open=[current_ghost_price], 
+            high=[max(current_ghost_price, prediction) + 0.8],
+            low=[min(current_ghost_price, prediction) - 0.8], 
+            close=[prediction],
+            increasing_line_color=color, decreasing_line_color=color,
+            increasing_fillcolor=color, decreasing_fillcolor=color,
+            name='Ghost Prediction'
         ))
-        last_price = pred_close
+        current_ghost_price = prediction
 
+    # TRADINGVIEW LOOK SETTINGS
     fig.update_layout(
         template='plotly_dark',
         xaxis_rangeslider_visible=False,
         height=700,
-        title="Gold Price Prediction",
-        yaxis_title="Price (USD)"
+        yaxis=dict(side='right', gridcolor='rgba(255,255,255,0.1)'),
+        xaxis=dict(gridcolor='rgba(255,255,255,0.1)'),
+        margin=dict(l=0, r=50, t=0, b=0)
     )
     st.plotly_chart(fig, use_container_width=True)
-    st.success("AI Ghost Mode Active: Live Data + Future Prediction")
+    st.info("Institutional AI active. Ghost Candles representing the next 2 hours based on 15m trend.")
 
 else:
-    st.error("Data load nahi ho sakya. Kirpa refresh karo.")
+    st.error("Market data load nahi hoya. Check your connection or refresh.")
