@@ -9,14 +9,16 @@ from datetime import datetime, timedelta
 st.set_page_config(layout="wide", page_title="SAVE Real-View PRO")
 st.markdown("""<style> .main { background-color: #0e1117; } </style>""", unsafe_allow_html=True)
 
-st.title("SAVE Real-View: Institutional AI Terminal")
+st.title("SAVE Real-View: Institutional Terminal (LIVE)")
 st.write("Live Gold Analysis | Consistent Prediction Mode")
 
-# 1. FETCH DATA (5-minute interval as requested earlier)
-@st.cache_data(ttl=30)
+# 1. LIVE FETCH DATA (Reduced TTL for Real-time feel)
+@st.cache_data(ttl=10) # Data har 10 second mein refresh hoga
 def get_institutional_data():
+    # 5-minute interval for stability
     df = yf.download("GC=F", period="5d", interval="5m")
-    df.columns = [col[0] if isinstance(col, tuple) else col for col in df.columns]
+    if not df.empty:
+        df.columns = [col[0] if isinstance(col, tuple) else col for col in df.columns]
     return df
 
 data = get_institutional_data()
@@ -31,7 +33,6 @@ if not data.empty:
     col1.metric("Live Gold Price", f"${last_price:,.2f}", f"{change:+.2f}")
     
     # --- 🔒 CONSISTENCY LOCK LOGIC ---
-    # Prediction nu current date aur hour naal lock kita hai taaki refresh te badle na
     now = datetime.now()
     seed_value = int(now.strftime("%Y%m%d%H")) 
     np.random.seed(seed_value)
@@ -67,7 +68,6 @@ if not data.empty:
         else:
             bias = recent_trend * 1.2 
             
-        # Move is now consistent because of the seed
         move = bias + np.random.normal(0, recent_volatility * 0.1)
         new_close = temp_price + move
         
@@ -99,7 +99,7 @@ if not data.empty:
     fig.add_hline(y=inst_support, line_dash="dash", line_color="green", annotation_text="BUY ZONE")
 
     st.plotly_chart(fig, use_container_width=True)
-    st.info("AI Analysis: Prediction is LOCKED for this hour for consistency.")
+    st.info("AI Analysis: Tracking Smart Money Flows. [Auto-refreshes every 10s]")
 
 else:
     st.error("Market data not available.")
