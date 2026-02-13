@@ -9,13 +9,13 @@ from datetime import datetime, timedelta
 st.set_page_config(layout="wide", page_title="SAVE Real-View PRO")
 st.markdown("""<style> .main { background-color: #0e1117; } </style>""", unsafe_allow_html=True)
 
-st.title("SAVE Real-View: Institutional Terminal (Pro)")
+st.title("SAVE Real-View: Institutional Terminal (5m)")
 
-# 1. FETCH DATA (Optimized for 15m Accuracy)
-@st.cache_data(ttl=60)
+# 1. FETCH DATA (Optimized for 5m Interval)
+@st.cache_data(ttl=30) # Refresh every 30 seconds for live feel
 def get_institutional_data():
-    # 1 month is perfect for 15m intervals without errors
-    df = yf.download("GC=F", period="1mo", interval="15m")
+    # Fetching 5 days of 5m data
+    df = yf.download("GC=F", period="5d", interval="5m")
     if not df.empty:
         df.columns = [col[0] if isinstance(col, tuple) else col for col in df.columns]
     return df
@@ -23,47 +23,49 @@ def get_institutional_data():
 data = get_institutional_data()
 
 if not data.empty:
-    # --- METRICS & AI LOCK ---
+    # --- METRICS ---
     last_price = float(data['Close'].iloc[-1])
-    np.random.seed(datetime.now().hour) 
-
-    # --- INSTITUTIONAL LEVELS (Last 200 candles for stability) ---
-    inst_resistance = float(data['High'].tail(200).max())
-    inst_support = float(data['Low'].tail(200).min())
     
-    # 2. DRAW CHART (TradingView Style)
+    # AI Lock: 5m timeframe needs higher stability
+    np.random.seed(datetime.now().minute // 5) 
+
+    # --- INSTITUTIONAL LEVELS (Last 500 candles for stability) ---
+    inst_resistance = float(data['High'].tail(500).max())
+    inst_support = float(data['Low'].tail(500).min())
+    
+    # 2. DRAW CHART (TradingView 5m Style)
     fig = go.Figure()
 
-    # REAL MARKET (Thin candles like TradingView)
+    # REAL MARKET (5m)
     fig.add_trace(go.Candlestick(
         x=data.index, open=data['Open'], high=data['High'], 
         low=data['Low'], close=data['Close'], name='Live Market',
-        increasing_line_width=1.2, decreasing_line_width=1.2
+        increasing_line_width=1, decreasing_line_width=1
     ))
 
-    # GHOST PREDICTIONS
+    # GHOST PREDICTIONS (Next 3 hours = 36 candles)
     temp_price = last_price
     last_time = data.index[-1]
 
-    for i in range(1, 41):
-        future_time = last_time + timedelta(minutes=15 * i)
-        trend = float(data['Close'].diff().tail(30).mean())
+    for i in range(1, 37):
+        future_time = last_time + timedelta(minutes=5 * i)
+        trend = float(data['Close'].diff().tail(20).mean())
         
         # Institutional logic: Bounce from S/R
         if temp_price >= inst_resistance:
-            move = -0.7 + np.random.normal(0, 0.2)
+            move = -0.3 + np.random.normal(0, 0.1)
         elif temp_price <= inst_support:
-            move = 0.7 + np.random.normal(0, 0.2)
+            move = 0.3 + np.random.normal(0, 0.1)
         else:
-            move = (trend * 1.4) + np.random.normal(0, 0.3)
+            move = (trend * 1.2) + np.random.normal(0, 0.2)
             
         new_close = temp_price + move
-        color = 'rgba(0, 255, 0, 0.4)' if new_close >= temp_price else 'rgba(255, 0, 0, 0.4)'
+        color = 'rgba(0, 255, 0, 0.3)' if new_close >= temp_price else 'rgba(255, 0, 0, 0.3)'
         
         fig.add_trace(go.Candlestick(
             x=[future_time], open=[temp_price], 
-            high=[max(temp_price, new_close) + 0.2],
-            low=[min(temp_price, new_close) - 0.2], 
+            high=[max(temp_price, new_close) + 0.1],
+            low=[min(temp_price, new_close) - 0.1], 
             close=[new_close],
             increasing_line_color=color, decreasing_line_color=color,
             increasing_fillcolor=color, decreasing_fillcolor=color,
@@ -86,7 +88,7 @@ if not data.empty:
     fig.add_hline(y=inst_support, line_dash="dash", line_color="green")
 
     st.plotly_chart(fig, use_container_width=True)
-    st.success(f"Live Price: ${last_price:,.2f} | Institutional AI Synced")
+    st.success(f"Live Price: ${last_price:,.2f} | 5m Institutional AI Synced")
 
 else:
-    st.error("Data fetch limit reached. Please refresh in 1 minute.")
+    st.error("Data fetch limit reached.")
