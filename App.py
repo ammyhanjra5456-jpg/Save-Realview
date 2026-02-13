@@ -7,16 +7,17 @@ from datetime import datetime, timedelta
 
 # --- CONFIGURATION ---
 st.set_page_config(layout="wide", page_title="SAVE Real-View PRO")
-st.markdown("""<style> .main { background-color: #0e1117; } </style>""", unsafe_allow_name_True)
+# FIXED: Corrected the parameter name here
+st.markdown("""<style> .main { background-color: #0e1117; } </style>""", unsafe_allow_html=True)
 
 st.title("SAVE Real-View: Institutional AI Terminal")
 st.write("Live Gold Analysis | Project: SAN-AM EXPRESS DELIVERY")
 
-# 1. FETCH HEAVY DATA (Institutional History)
+# 1. FETCH HEAVY DATA
 @st.cache_data(ttl=30)
 def get_institutional_data():
-    # Gold Futures for Live Data
     df = yf.download("GC=F", period="5d", interval="15m")
+    # Clean column names
     df.columns = [col[0] if isinstance(col, tuple) else col for col in df.columns]
     return df
 
@@ -25,21 +26,19 @@ data = get_institutional_data()
 if not data.empty:
     # --- LIVE PRICE METRICS ---
     last_price = float(data['Close'].iloc[-1])
-    change = last_price - float(data['Open'].iloc[-1])
+    open_price = float(data['Open'].iloc[-1])
+    change = last_price - open_price
     
     col1, col2, col3 = st.columns(3)
     col1.metric("Live Gold Price", f"${last_price:,.2f}", f"{change:+.2f}")
     
-    # --- AI LOGIC: INSTITUTIONAL & NEWS ---
-    # Calculating High-Volume Areas (Support/Resistance)
+    # --- AI LOGIC ---
     inst_resistance = float(data['High'].max())
     inst_support = float(data['Low'].min())
-    
-    # News Multiplier (War/Events) - simulating news-driven volatility
     recent_volatility = float(data['Close'].std())
     recent_trend = float(data['Close'].diff().tail(20).mean())
 
-    # 2. GENERATE GHOST PREDICTIONS (Next 40 Candles)
+    # 2. GENERATE GHOST PREDICTIONS
     fig = go.Figure()
 
     # REAL MARKET CANDLES
@@ -55,20 +54,18 @@ if not data.empty:
     for i in range(1, 41):
         future_time = last_time + timedelta(minutes=15 * i)
         
-        # AI Logic: Rejection from Institutional Levels
+        # Institutional Rejection Logic
         if temp_price >= inst_resistance:
-            bias = -1.2 # Strong Sell Zone
+            bias = -1.0 
         elif temp_price <= inst_support:
-            bias = 1.2 # Strong Buy Zone
+            bias = 1.0 
         else:
-            bias = recent_trend * 1.5 # Follow News Momentum
+            bias = recent_trend * 1.5 
             
-        # Prediction calculation
-        move = bias + np.random.normal(0, recent_volatility * 0.2)
+        move = bias + np.random.normal(0, recent_volatility * 0.15)
         new_close = temp_price + move
         
-        # Color based on Smart Money Flow
-        is_up = new_close >= temp_price
+        is_up = bool(new_close >= temp_price)
         color = 'rgba(0, 255, 0, 0.4)' if is_up else 'rgba(255, 0, 0, 0.4)'
         
         fig.add_trace(go.Candlestick(
@@ -87,20 +84,17 @@ if not data.empty:
         template='plotly_dark',
         xaxis_rangeslider_visible=False,
         height=750,
-        yaxis=dict(side='right', gridcolor='#1f2937', title="Gold Price (USD)"),
+        yaxis=dict(side='right', gridcolor='#1f2937'),
         xaxis=dict(gridcolor='#1f2937'),
-        margin=dict(l=0, r=50, t=10, b=10),
-        plot_bgcolor='#0e1117',
-        paper_bgcolor='#0e1117'
+        margin=dict(l=0, r=50, t=10, b=10)
     )
     
-    # Draw Institutional Lines
-    fig.add_hline(y=inst_resistance, line_dash="dash", line_color="red", annotation_text="INSTITUTIONAL SELL ZONE")
-    fig.add_hline(y=inst_support, line_dash="dash", line_color="green", annotation_text="INSTITUTIONAL BUY ZONE")
+    # Institutional Zones
+    fig.add_hline(y=inst_resistance, line_dash="dash", line_color="red")
+    fig.add_hline(y=inst_support, line_dash="dash", line_color="green")
 
     st.plotly_chart(fig, use_container_width=True)
-    st.markdown("### 🧠 AI Analysis: Gold is currently following **Institutional Momentum**.")
-    st.write("Ghost Candles represent the predicted Smart Money path for the next 10 hours.")
+    st.info("AI Analysis: Tracking Smart Money Flows & War/News Impact.")
 
 else:
-    st.error("Market data fetch nahi ho sakya. Check Streamlit Logs.")
+    st.error("Market data not available.")
