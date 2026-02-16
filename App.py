@@ -7,12 +7,13 @@ from datetime import datetime, timedelta
 
 # --- CONFIGURATION ---
 st.set_page_config(layout="wide", page_title="SAVE Real-View PRO")
-st.markdown("""<style> .main { background-color: #0e1117; } </style>""", unsafe_ignore_html=True)
+# FIXED: Changed unsafe_ignore_html to unsafe_allow_html
+st.markdown("""<style> .main { background-color: #0e1117; } </style>""", unsafe_allow_html=True)
 
 st.title("SAVE Real-View: Institutional AI Terminal")
 st.write("Status: Live Institutional Flow | High Accuracy Mode")
 
-# 1. FETCH DATA (5m Interval - Fixed for alignment)
+# 1. FETCH DATA (5m Interval)
 @st.cache_data(ttl=15)
 def get_institutional_data():
     try:
@@ -44,7 +45,7 @@ if not data.empty:
         low=data['Low'], close=data['Close'], name='Market'
     ))
 
-    # --- 2. GHOST PREDICTIONS (Aligned) ---
+    # --- 2. GHOST PREDICTIONS (Aligned to Live Price) ---
     temp_price = last_price
     np.random.seed(int(datetime.now().strftime("%H%M")))
 
@@ -68,12 +69,13 @@ if not data.empty:
         ))
         temp_price = new_close
 
-    # 3. INSTITUTIONAL LINES
+    # 3. LAYOUT & INSTITUTIONAL LINES
     fig.update_layout(
         template='plotly_dark',
         xaxis_rangeslider_visible=False,
         height=750,
-        yaxis=dict(side='right')
+        yaxis=dict(side='right'),
+        xaxis=dict(range=[last_time - timedelta(hours=6), last_time + timedelta(hours=3)])
     )
     
     fig.add_hline(y=inst_res, line_dash="dash", line_color="#ff4b4b", annotation_text="INST. SELL")
@@ -81,4 +83,5 @@ if not data.empty:
 
     st.plotly_chart(fig, use_container_width=True)
 else:
-    st.error("Waiting for Live Market Stream...")
+    st.error("Waiting for Live Market Stream... Please check after a few seconds.")
+
