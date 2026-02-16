@@ -21,8 +21,8 @@ st.write("Status: High-Accuracy Prediction | Liquidity Sweep Active")
 @st.cache_data(ttl=10)
 def get_institutional_data():
     try:
-        # period=3d for better ATR calculation
-        df = yf.download("GC=F", period="3d", interval="5m")
+        # Fetching Gold Futures with 5m interval
+        df = yf.download("GC=F", period="2d", interval="5m")
         if df.empty: return pd.DataFrame()
         df.columns = [col[0] if isinstance(col, tuple) else col for col in df.columns]
         return df
@@ -41,9 +41,9 @@ if not data.empty:
     st.metric("Gold Live (XAU/USD)", f"${last_price:,.2f}", delta=f"ATR: {atr:.2f}")
     
     # INSTITUTIONAL LEVELS
-    inst_res = float(data['High'].tail(150).max())
-    inst_sup = float(data['Low'].tail(150).min())
-    trend = float(data['Close'].diff().tail(20).mean())
+    inst_res = float(data['High'].tail(100).max())
+    inst_sup = float(data['Low'].tail(100).min())
+    trend = float(data['Close'].diff().tail(15).mean())
 
     fig = go.Figure()
 
@@ -75,7 +75,6 @@ if not data.empty:
         new_close = temp_price + move
         
         # LIQUIDITY SWEEP WICKS (Short, sharp spikes)
-        # Randomly adds a "sweep" to simulate institutional hunting
         sweep_up = (atr * 0.8) if np.random.random() > 0.8 else (atr * 0.2)
         sweep_down = (atr * 0.8) if np.random.random() > 0.8 else (atr * 0.2)
         
@@ -90,7 +89,20 @@ if not data.empty:
         ))
         temp_price = new_close
 
-    # 3. LAYOUT & ZONES
+    # 3. AUTO-REVERSAL DETECTOR
+    # If price is near zone and wick is long, show reversal signal
+    if last_price >= (inst_res - atr) or last_price <= (inst_sup + atr):
+        signal_color = "red" if last_price >= (inst_res - atr) else "green"
+        fig.add_trace(go.Scatter(
+            x=[last_time], y=[last_price],
+            mode="markers+text",
+            marker=dict(size=15, color=signal_color, symbol="diamond"),
+            text=["⚠️ POSSIBLE REVERSAL"],
+            textposition="top center",
+            name="Signal"
+        ))
+
+    # 4. LAYOUT & ZONES
     fig.add_hline(y=inst_res, line_dash="dash", line_color="red", annotation_text="INSTITUTIONAL SUPPLY")
     fig.add_hline(y=inst_sup, line_dash="dash", line_color="green", annotation_text="INSTITUTIONAL DEMAND")
 
@@ -102,4 +114,4 @@ if not data.empty:
     
     st.plotly_chart(fig, use_container_width=True)
 else:
-    st.warning("📡 Market Data loading... Ensure market is open (Gold is live now).")
+    st.warning("📡 Market Data loading... Ensure market is open.")
