@@ -18,15 +18,24 @@ with st.sidebar:
 st.title("SAVE Real-View: Institutional Liquidity Mode")
 st.write("Status: High-Accuracy Prediction | Liquidity Sweep Active")
 
-@st.cache_data(ttl=10)
+# --- ILAJ START: Forbidden Error Fix ---
+@st.cache_data(ttl=15)
 def get_institutional_data():
     try:
-        # Fetching Gold Futures with 5m interval
-        df = yf.download("GC=F", period="2d", interval="5m")
+        # Ticker method is more stable against forbidden errors
+        gold = yf.Ticker("GC=F")
+        df = gold.history(period="2d", interval="5m")
+        
         if df.empty: return pd.DataFrame()
+        
+        # Cleaning column names (handling multi-index if necessary)
         df.columns = [col[0] if isinstance(col, tuple) else col for col in df.columns]
         return df
-    except: return pd.DataFrame()
+    except Exception as e:
+        # Shows exactly what the error is if it happens
+        st.error(f"Data Fetch Error: {e}")
+        return pd.DataFrame()
+# --- ILAJ END ---
 
 data = get_institutional_data()
 
@@ -34,20 +43,18 @@ if not data.empty:
     last_price = float(data['Close'].iloc[-1])
     last_time = data.index[-1]
     
-    # CALCULATE ATR FOR ACCURACY
     high_low = data['High'] - data['Low']
     atr = high_low.tail(20).mean()
     
     st.metric("Gold Live (XAU/USD)", f"${last_price:,.2f}", delta=f"ATR: {atr:.2f}")
     
-    # INSTITUTIONAL LEVELS
     inst_res = float(data['High'].tail(100).max())
     inst_sup = float(data['Low'].tail(100).min())
     trend = float(data['Close'].diff().tail(15).mean())
 
     fig = go.Figure()
 
-    # 1. REAL MARKET (White/Grey Institutional Style)
+    # 1. REAL MARKET
     fig.add_trace(go.Candlestick(
         x=data.index, open=data['Open'], high=data['High'], 
         low=data['Low'], close=data['Close'], name='Market',
@@ -55,26 +62,20 @@ if not data.empty:
         increasing_fillcolor='#ffffff', decreasing_fillcolor='#4a4a4a'
     ))
 
-    # 2. GHOST PREDICTIONS (High Accuracy Liquidity Logic)
+    # 2. GHOST PREDICTIONS
     temp_price = last_price
-    
     for i in range(1, 41): 
         future_time = last_time + timedelta(minutes=5 * i)
-        
-        # Bias towards institutional levels
         dist_to_res = inst_res - temp_price
         dist_to_sup = temp_price - inst_sup
         
-        # Strength logic: moves harder when near zones
         bias = trend * 2.0
-        if dist_to_res < (atr * 2): bias -= (atr * 0.5) # Sell pressure near resistance
-        if dist_to_sup < (atr * 2): bias += (atr * 0.5) # Buy pressure near support
+        if dist_to_res < (atr * 2): bias -= (atr * 0.5) 
+        if dist_to_sup < (atr * 2): bias += (atr * 0.5) 
         
-        # Random walk with volatility scaling
         move = bias + (np.random.randn() * atr * 0.4)
         new_close = temp_price + move
         
-        # LIQUIDITY SWEEP WICKS (Short, sharp spikes)
         sweep_up = (atr * 0.8) if np.random.random() > 0.8 else (atr * 0.2)
         sweep_down = (atr * 0.8) if np.random.random() > 0.8 else (atr * 0.2)
         
@@ -90,7 +91,6 @@ if not data.empty:
         temp_price = new_close
 
     # 3. AUTO-REVERSAL DETECTOR
-    # If price is near zone and wick is long, show reversal signal
     if last_price >= (inst_res - atr) or last_price <= (inst_sup + atr):
         signal_color = "red" if last_price >= (inst_res - atr) else "green"
         fig.add_trace(go.Scatter(
@@ -114,4 +114,4 @@ if not data.empty:
     
     st.plotly_chart(fig, use_container_width=True)
 else:
-    st.warning("📡 Market Data loading... Ensure market is open.")
+    st.warning("📡 Connecting to Exchange... Ensure Gold is trading.")
