@@ -1,6 +1,6 @@
 streamlit
-yfinance
 pandas
 numpy
 plotly
-scikit-learn
+yfinance==0.2.40
+requests
