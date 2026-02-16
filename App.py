@@ -16,12 +16,11 @@ with st.sidebar:
         st.rerun()
 
 st.title("SAVE Real-View: Institutional AI Terminal")
-st.write("Status: Live 5m Flow | Stable Mode")
+st.write("Status: Live 5m Flow | Stable Prediction Mode")
 
-@st.cache_data(ttl=30)
+@st.cache_data(ttl=15)
 def get_institutional_data():
     try:
-        # Using 2d for faster load
         df = yf.download("GC=F", period="2d", interval="5m")
         if df.empty: return pd.DataFrame()
         df.columns = [col[0] if isinstance(col, tuple) else col for col in df.columns]
@@ -52,20 +51,17 @@ if not data.empty:
         increasing_fillcolor='#ffffff', decreasing_fillcolor='#4a4a4a'
     ))
 
-    # 2. GHOST PREDICTIONS
+    # 2. GHOST PREDICTIONS (NO-SEED STABLE LOGIC)
     temp_price = last_price
     
-    # --- FIXED SEED LOGIC (Small number to prevent crash) ---
-    now = datetime.now()
-    safe_seed = (now.year + now.month + now.day + now.hour + now.minute)
-    np.random.seed(safe_seed)
-
+    # Simple prediction without large number seeds to prevent crash
     for i in range(1, 31): 
         future_time = last_time + timedelta(minutes=5 * i)
         
-        # Institutional Bias Logic
+        # Bias Logic
         bias = 0.5 if temp_price <= inst_sup else (-0.5 if temp_price >= inst_res else trend * 1.5)
-        move = bias + np.random.normal(0, volatility * 0.1)
+        # Using direct random move
+        move = bias + (np.random.randn() * volatility * 0.1)
         new_close = temp_price + move
         
         # Accuracy Wicks
@@ -80,7 +76,7 @@ if not data.empty:
         ))
         temp_price = new_close
 
-    # 3. LAYOUT & VIEW
+    # 3. LAYOUT
     fig.update_layout(
         template='plotly_dark', xaxis_rangeslider_visible=False, height=800,
         yaxis=dict(side='right', gridcolor='#1f2937'),
@@ -89,4 +85,4 @@ if not data.empty:
     
     st.plotly_chart(fig, use_container_width=True)
 else:
-    st.warning("📡 Connecting to Exchange... Please refresh in a moment.")
+    st.warning("📡 Market Data loading... Refresh after 5 seconds.")
