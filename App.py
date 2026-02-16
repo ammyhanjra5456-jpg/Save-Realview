@@ -1,9 +1,9 @@
 import streamlit as st
-import yfinance as yf
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
+import pandas_datareader.data as web
 
 # --- CONFIGURATION ---
 st.set_page_config(layout="wide", page_title="SAVE Real-View PRO")
@@ -16,22 +16,20 @@ with st.sidebar:
         st.rerun()
 
 st.title("SAVE Real-View: Institutional Liquidity Mode")
-st.write("Status: Stable YFinance Mode")
+st.write("Status: Ultra-Stable Data Mode (Anti-Forbidden)")
 
-# --- ULTRA STABLE FETCH (No API Key needed) ---
-@st.cache_data(ttl=15)
+@st.cache_data(ttl=60)
 def get_institutional_data():
     try:
-        # Using yfinance, but with a different approach
-        df = yf.download(tickers="GC=F", period="2d", interval="5m", progress=False)
+        # Fetching Gold Price using Stooq (Alternative to Yahoo)
+        end = datetime.now()
+        start = end - timedelta(days=5)
+        df = web.DataReader('GC.F', 'stooq', start, end)
         
-        if df.empty:
-            return pd.DataFrame()
+        if df.empty: return pd.DataFrame()
         
-        # Handling potential multi-index columns
-        if isinstance(df.columns, pd.MultiIndex):
-            df.columns = df.columns.get_level_values(0)
-            
+        # Stooq returns data in reverse, so we sort it
+        df = df.sort_index()
         return df
     except Exception as e:
         return pd.DataFrame()
@@ -42,15 +40,15 @@ if not data.empty:
     last_price = float(data['Close'].iloc[-1])
     last_time = data.index[-1]
     
-    # ATR & Accuracy Logic
+    # ATR Calculation
     high_low = data['High'] - data['Low']
     atr = high_low.tail(20).mean()
     
     st.metric("Gold Live (XAU/USD)", f"${last_price:,.2f}", delta=f"ATR: {atr:.2f}")
     
-    inst_res = float(data['High'].tail(100).max())
-    inst_sup = float(data['Low'].tail(100).min())
-    trend = float(data['Close'].diff().tail(15).mean())
+    inst_res = float(data['High'].tail(50).max())
+    inst_sup = float(data['Low'].tail(50).min())
+    trend = float(data['Close'].diff().tail(10).mean())
 
     fig = go.Figure()
 
@@ -63,14 +61,13 @@ if not data.empty:
 
     # 2. GHOST PREDICTIONS
     temp_price = last_price
-    for i in range(1, 41): 
-        future_time = last_time + timedelta(minutes=5 * i)
-        move = (trend * 2.0) + (np.random.randn() * atr * 0.4)
+    for i in range(1, 31): 
+        future_time = last_time + timedelta(minutes=15 * i)
+        move = (trend * 1.5) + (np.random.randn() * atr * 0.5)
         new_close = temp_price + move
         
-        # Liquidity Sweep Wicks
-        p_high = max(temp_price, new_close) + (atr * 0.5)
-        p_low = min(temp_price, new_close) - (atr * 0.5)
+        p_high = max(temp_price, new_close) + (atr * 0.4)
+        p_low = min(temp_price, new_close) - (atr * 0.4)
         
         color = 'rgba(0, 255, 150, 0.4)' if new_close >= temp_price else 'rgba(255, 50, 50, 0.4)'
         fig.add_trace(go.Candlestick(
@@ -79,9 +76,9 @@ if not data.empty:
         ))
         temp_price = new_close
 
-    # 3. REVERSAL DIAMOND SIGNAL
-    if last_price >= (inst_res - atr) or last_price <= (inst_sup + atr):
-        sig_col = "red" if last_price >= (inst_res - atr) else "green"
+    # 3. REVERSAL SIGNAL
+    if last_price >= (inst_res - (atr*0.5)) or last_price <= (inst_sup + (atr*0.5)):
+        sig_col = "red" if last_price >= (inst_res - (atr*0.5)) else "green"
         fig.add_trace(go.Scatter(x=[last_time], y=[last_price], mode="markers+text",
                                  marker=dict(size=15, color=sig_col, symbol="diamond"),
                                  text=["⚠️ REVERSAL"], textposition="top center"))
@@ -90,10 +87,10 @@ if not data.empty:
     fig.add_hline(y=inst_res, line_dash="dash", line_color="red", annotation_text="SUPPLY")
     fig.add_hline(y=inst_sup, line_dash="dash", line_color="green", annotation_text="DEMAND")
 
-    fig.update_layout(template='plotly_dark', xaxis_rangeslider_visible=False, height=850,
-                      yaxis=dict(side='right', gridcolor='#1f2937'),
-                      xaxis=dict(range=[last_time - timedelta(hours=5), last_time + timedelta(hours=4)]))
+    fig.update_layout(template='plotly_dark', xaxis_rangeslider_visible=False, height=800,
+                      yaxis=dict(side='right'),
+                      xaxis=dict(range=[last_time - timedelta(days=1), last_time + timedelta(hours=8)]))
     
     st.plotly_chart(fig, use_container_width=True)
 else:
-    st.error("📡 Connection Issue. Click 'Force Market Refresh'.")
+    st.error("📡 Data source is resetting. Please wait 1 minute and refresh.")
