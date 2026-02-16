@@ -1,16 +1,13 @@
 import streamlit as st
+import yfinance as yf
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
-from alpha_vantage.timeseries import TimeSeries
 
 # --- CONFIGURATION ---
 st.set_page_config(layout="wide", page_title="SAVE Real-View PRO")
 st.markdown("""<style> .main { background-color: #0e1117; } </style>""", unsafe_allow_html=True)
-
-# 🚨 TUHADI API KEY PASTE KITI HAI 🚨
-API_KEY = 'I7Z8KJSFPXEBVHYW' 
 
 with st.sidebar:
     st.header("Institutional Terminal")
@@ -19,22 +16,24 @@ with st.sidebar:
         st.rerun()
 
 st.title("SAVE Real-View: Institutional Liquidity Mode")
-st.write("Status: Alpha Vantage High-Speed Mode | Anti-Block Active")
+st.write("Status: Stable YFinance Mode")
 
-@st.cache_data(ttl=60)
+# --- ULTRA STABLE FETCH (No API Key needed) ---
+@st.cache_data(ttl=15)
 def get_institutional_data():
     try:
-        ts = TimeSeries(key=API_KEY, output_format='pandas')
-        # Gold Futures (GC=F) di bajaye symbol 'GOLD' use kita hai for Alpha Vantage
-        data, meta_data = ts.get_intraday(symbol='GOLD', interval='5min', outputsize='compact')
+        # Using yfinance, but with a different approach
+        df = yf.download(tickers="GC=F", period="2d", interval="5m", progress=False)
         
-        data = data.rename(columns={
-            '1. open': 'Open', '2. high': 'High',
-            '3. low': 'Low', '4. close': 'Close', '5. volume': 'Volume'
-        })
-        return data.sort_index()
+        if df.empty:
+            return pd.DataFrame()
+        
+        # Handling potential multi-index columns
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = df.columns.get_level_values(0)
+            
+        return df
     except Exception as e:
-        st.error(f"API Connection Error: {e}")
         return pd.DataFrame()
 
 data = get_institutional_data()
@@ -43,33 +42,35 @@ if not data.empty:
     last_price = float(data['Close'].iloc[-1])
     last_time = data.index[-1]
     
+    # ATR & Accuracy Logic
     high_low = data['High'] - data['Low']
     atr = high_low.tail(20).mean()
     
     st.metric("Gold Live (XAU/USD)", f"${last_price:,.2f}", delta=f"ATR: {atr:.2f}")
     
-    inst_res = float(data['High'].tail(50).max())
-    inst_sup = float(data['Low'].tail(50).min())
-    trend = float(data['Close'].diff().tail(10).mean())
+    inst_res = float(data['High'].tail(100).max())
+    inst_sup = float(data['Low'].tail(100).min())
+    trend = float(data['Close'].diff().tail(15).mean())
 
     fig = go.Figure()
 
-    # 1. REAL MARKET (White/Grey Style)
+    # 1. REAL MARKET
     fig.add_trace(go.Candlestick(
         x=data.index, open=data['Open'], high=data['High'], 
         low=data['Low'], close=data['Close'], name='Market',
         increasing_line_color='#ffffff', decreasing_line_color='#4a4a4a'
     ))
 
-    # 2. GHOST PREDICTIONS (High Accuracy)
+    # 2. GHOST PREDICTIONS
     temp_price = last_price
-    for i in range(1, 31): 
+    for i in range(1, 41): 
         future_time = last_time + timedelta(minutes=5 * i)
-        move = (trend * 1.5) + (np.random.randn() * atr * 0.5)
+        move = (trend * 2.0) + (np.random.randn() * atr * 0.4)
         new_close = temp_price + move
         
-        p_high = max(temp_price, new_close) + (atr * 0.4)
-        p_low = min(temp_price, new_close) - (atr * 0.4)
+        # Liquidity Sweep Wicks
+        p_high = max(temp_price, new_close) + (atr * 0.5)
+        p_low = min(temp_price, new_close) - (atr * 0.5)
         
         color = 'rgba(0, 255, 150, 0.4)' if new_close >= temp_price else 'rgba(255, 50, 50, 0.4)'
         fig.add_trace(go.Candlestick(
@@ -79,8 +80,8 @@ if not data.empty:
         temp_price = new_close
 
     # 3. REVERSAL DIAMOND SIGNAL
-    if last_price >= (inst_res - (atr*0.5)) or last_price <= (inst_sup + (atr*0.5)):
-        sig_col = "red" if last_price >= (inst_res - (atr*0.5)) else "green"
+    if last_price >= (inst_res - atr) or last_price <= (inst_sup + atr):
+        sig_col = "red" if last_price >= (inst_res - atr) else "green"
         fig.add_trace(go.Scatter(x=[last_time], y=[last_price], mode="markers+text",
                                  marker=dict(size=15, color=sig_col, symbol="diamond"),
                                  text=["⚠️ REVERSAL"], textposition="top center"))
@@ -89,11 +90,10 @@ if not data.empty:
     fig.add_hline(y=inst_res, line_dash="dash", line_color="red", annotation_text="SUPPLY")
     fig.add_hline(y=inst_sup, line_dash="dash", line_color="green", annotation_text="DEMAND")
 
-    fig.update_layout(template='plotly_dark', xaxis_rangeslider_visible=False, height=800,
-                      yaxis=dict(side='right'),
-                      xaxis=dict(range=[last_time - timedelta(hours=3), last_time + timedelta(hours=3)]))
+    fig.update_layout(template='plotly_dark', xaxis_rangeslider_visible=False, height=850,
+                      yaxis=dict(side='right', gridcolor='#1f2937'),
+                      xaxis=dict(range=[last_time - timedelta(hours=5), last_time + timedelta(hours=4)]))
     
     st.plotly_chart(fig, use_container_width=True)
 else:
-    st.info("🔄 API key active. Waiting for data sync...")
-
+    st.error("📡 Connection Issue. Click 'Force Market Refresh'.")
