@@ -1,4 +1,4 @@
-import streamlit as st
+import streamlit as st  # <--- 'i' ko chota (lowercase) kar ditta hai
 import yfinance as yf
 import pandas as pd
 import numpy as np
@@ -21,6 +21,7 @@ st.write("Status: Institutional Directional Bias | Simplified View")
 @st.cache_data(ttl=30)
 def get_institutional_data():
     try:
+        # Fetching Gold Futures with 5m interval
         df = yf.download("GC=F", period="5d", interval="5m")
         if df.empty: raise ValueError("No data")
         df.columns = [col[0] if isinstance(col, tuple) else col for col in df.columns]
@@ -51,7 +52,8 @@ if not data.empty:
     temp_price = last_price
     last_time = data.index[-1]
     
-    np.random.seed(int(datetime.now().strftime("%Y%m%d%H")))
+    # Use minute for seed to make it update faster than hourly
+    np.random.seed(int(datetime.now().strftime("%Y%m%d%H%M")))
 
     for i in range(1, 31): # 30 candles only for clarity
         future_time = last_time + timedelta(minutes=5 * i)
@@ -75,7 +77,6 @@ if not data.empty:
         temp_price = new_close
 
     # 3. ENTRY ZONE VISUALIZER
-    # Predicts the best area to put your Limit Order
     entry_level = last_price - (volatility * 0.5) if trend > 0 else last_price + (volatility * 0.5)
     fig.add_hline(y=entry_level, line_dash="dot", line_color="orange", 
                   annotation_text="OPTIMAL ENTRY ZONE (LIMIT ORDER)")
