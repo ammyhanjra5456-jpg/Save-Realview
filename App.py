@@ -13,8 +13,8 @@ st.markdown("""<style> .main { background-color: #0e1117; } </style>""", unsafe_
 st.title("SAVE Real-View: Institutional AI Terminal")
 st.write("Status: Live Institutional Flow | High Accuracy Mode")
 
-# 1. FETCH DATA (5m Interval)
-@st.cache_data(ttl=15)
+# 1. FETCH DATA (5m Interval - Faster)
+@st.cache_data(ttl=10) # Reduced TTL for faster live updates
 def get_institutional_data():
     try:
         df = yf.download("GC=F", period="2d", interval="5m")
@@ -45,7 +45,7 @@ if not data.empty:
         low=data['Low'], close=data['Close'], name='Market'
     ))
 
-    # --- 2. GHOST PREDICTIONS (Aligned to Live Price) ---
+    # --- 2. GHOST PREDICTIONS (Aligned) ---
     temp_price = last_price
     np.random.seed(int(datetime.now().strftime("%H%M")))
 
@@ -75,6 +75,7 @@ if not data.empty:
         xaxis_rangeslider_visible=False,
         height=750,
         yaxis=dict(side='right'),
+        # Fixes the zoom issue
         xaxis=dict(range=[last_time - timedelta(hours=6), last_time + timedelta(hours=3)])
     )
     
@@ -83,5 +84,5 @@ if not data.empty:
 
     st.plotly_chart(fig, use_container_width=True)
 else:
-    st.error("Waiting for Live Market Stream... Please check after a few seconds.")
+    st.error("Waiting for Live Market Stream...")
 
