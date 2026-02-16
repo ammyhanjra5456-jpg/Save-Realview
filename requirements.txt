@@ -2,5 +2,4 @@ streamlit
 pandas
 numpy
 plotly
-yfinance==0.2.40
-requests
+pandas_datareader
